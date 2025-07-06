@@ -107,6 +107,13 @@ cr() {
 - `-h, --help`  
   Show help message and exit.
 
+- '--model <model_name>`  
+  Model name to use for the LLM (default: `openai/gpt-4.1`).
+
+## Style Guide
+
+If you want to control the style of the review, edit the `system_prompt.md` file in the repo directory.
+
 
 ## Contributing
 
