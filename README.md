@@ -1,6 +1,6 @@
 # Code Reviewer
 
-A friendly command-line code review tool for PHP/Laravel projects powered by Claude via the `litellm` library.
+A friendly command-line code review tool for PHP/Laravel projects powered by an LLM.
 
 Repository: https://github.com/ohnotnow/code-reviewer
 
@@ -20,7 +20,7 @@ Repository: https://github.com/ohnotnow/code-reviewer
 - Reviews either a single PHP/Blade file or all staged PHP changes in a Git repo  
 - Enforces a maximum line count per file or total diff  
 - Provides structured, emoji-driven feedback on readability, Laravel best practices, defensive coding, and more  
-- Powered by Claude (via `litellm`) with a clear system prompt tuned for PHP/Laravel teams  
+- Powered by an LLM (via `litellm`) with a clear system prompt tuned for PHP/Laravel teams  
 
 ---
 
@@ -54,7 +54,7 @@ Clone the repository and install dependencies using the modern `uv` tool.
 
 ## Configuration
 
-This tool requires an API key for Claude (via `litellm`). Set the environment variable before running:
+This tool requires an API key for your LLM. Set the environment variable before running:
 
 macOS & Ubuntu (bash/zsh):
 ```bash
@@ -79,18 +79,24 @@ All commands below assume you are in the project root.
 
 1. Review **all staged PHP changes** in your Git repository:
    ```bash
-   uv run main.py
-   ```
-   or, if `main.py` has execute permissions:
-   ```bash
-   ./main.py
+   source /path/to/code-reviewer/.venv/bin/activate
+   uv run /path/to/code-reviewer/main.py
    ```
 
 2. Review a **single file**:
    ```bash
-   uv run main.py path/to/File.php
+   uv run /path/to/code-reviewer/main.py path/to/File.php
    ```
 
+If you find yourself frequently using this tool, you can add it to your `.bashrc` or `.zshrc` file:
+
+```bash
+cr() {
+    source /path/to/code-reviewer/.venv/bin/activate
+    python /path/to/code-reviewer/main.py "$*"
+    deactivate
+}
+```
 ---
 
 ## Options & Flags
@@ -101,19 +107,6 @@ All commands below assume you are in the project root.
 - `-h, --help`  
   Show help message and exit.
 
-### Examples
-
-Review changed files with a higher single-file limit:
-```bash
-uv run main.py --max-lines 800
-```
-
-Review one file:
-```bash
-uv run main.py app/Models/User.php
-```
-
----
 
 ## Contributing
 
