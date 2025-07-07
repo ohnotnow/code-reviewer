@@ -121,9 +121,13 @@ Please provide a friendly code review focusing on the changes made, highlighting
 
 def get_system_prompt() -> str:
     """Get the system prompt for the code review."""
-    script_dir = Path(__file__).parent
-    with open(script_dir / "system_prompt.md", "r", encoding="utf-8") as f:
-        return f.read()
+    if Path("~/.code-review-prompt.md").expanduser().exists():
+        with open(Path("~/.code-review-prompt.md").expanduser(), "r", encoding="utf-8") as f:
+            return f.read()
+    else:
+        script_dir = Path(__file__).parent
+        with open(script_dir / "system_prompt.md", "r", encoding="utf-8") as f:
+            return f.read()
 
 def review_code(content: str, model: str = "openai/gpt-4.1") -> str:
     """Send code to LLM for review."""

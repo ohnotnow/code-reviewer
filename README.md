@@ -117,7 +117,7 @@ cr() {
 
 ## Style Guide
 
-If you want to control the style of the review, edit the `system_prompt.md` file in the repo directory.
+The script looks for a file called `~/.code-review-prompt.md` for its instructions.  If it isn't found it will default to the `system_prompt.md` file in the repo.  You can copy the default file to `~/.code-review-prompt.md` and edit it to suit your preferences.
 
 
 ## Contributing
