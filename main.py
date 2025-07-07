@@ -232,7 +232,13 @@ def main():
     review = review_code(review_content, model="openai/gpt-4.1")
 
     print("\n" + "="*60)
-    print(review)
+    # check if we have the `glow` binary available
+    if run_command(['which', 'glow'])[0]:
+        # use glow to print the review by passing it as stdin
+        subprocess.run(['glow', '-s', 'dracula'], input=review.encode('utf-8'))
+    else:
+        print(review)
+
     print("="*60)
 
 
