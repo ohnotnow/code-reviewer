@@ -81,11 +81,14 @@ All commands below assume you are in the PHP projects root.
    ```bash
    source /path/to/code-reviewer/.venv/bin/activate
    uv run /path/to/code-reviewer/main.py
+   deactivate
    ```
 
 2. Review a **single file**:
    ```bash
+   source /path/to/code-reviewer/.venv/bin/activate
    uv run /path/to/code-reviewer/main.py path/to/File.php
+   deactivate
    ```
 
 Note: by default it will just print the markdown report to your terminal.  If you have the [glow](https://github.com/charmbracelet/glow) utility installed it will 'render' the markdown instead.
