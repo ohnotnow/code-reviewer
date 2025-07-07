@@ -109,7 +109,7 @@ cr() {
 - `-h, --help`
   Show help message and exit.
 
-- '--model <model_name>`
+- `--model <model_name>`
   Model name to use for the LLM (default: `openai/gpt-4.1`).
 
 ## Style Guide
