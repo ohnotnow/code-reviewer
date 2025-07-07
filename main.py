@@ -119,19 +119,28 @@ Here's the git diff showing what has changed:
 
 Please provide a friendly code review focusing on the changes made, highlighting good practices and suggesting improvements where appropriate."""
 
-def get_system_prompt() -> str:
+def get_system_prompt(prompt_file: str = None) -> str:
     """Get the system prompt for the code review."""
+    if prompt_file:
+        prompt_file = Path(prompt_file).expanduser()
+        if prompt_file.exists():
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                return f.read()
+        else:
+            print(f"❌ Error: Prompt file {prompt_file} does not exist")
+            sys.exit(1)
+
     if Path("~/.code-review-prompt.md").expanduser().exists():
         with open(Path("~/.code-review-prompt.md").expanduser(), "r", encoding="utf-8") as f:
             return f.read()
-    else:
-        script_dir = Path(__file__).parent
-        with open(script_dir / "system_prompt.md", "r", encoding="utf-8") as f:
-            return f.read()
 
-def review_code(content: str, model: str = "openai/gpt-4.1") -> str:
+    script_dir = Path(__file__).parent
+    with open(script_dir / "system_prompt.md", "r", encoding="utf-8") as f:
+        return f.read()
+
+def review_code(content: str, model: str = "openai/gpt-4.1", prompt_file: str = None) -> str:
     """Send code to LLM for review."""
-    system_prompt = get_system_prompt()
+    system_prompt = get_system_prompt(prompt_file)
     litellm.drop_params = True
     try:
         response = completion(
@@ -173,7 +182,12 @@ def main():
         default="openai/gpt-4.1",
         help='Model to use for code review (default: openai/gpt-4.1)'
     )
-
+    parser.add_argument(
+        '--prompt-file',
+        type=str,
+        default=None,
+        help='Specific prompt file to use for this run'
+    )
     args = parser.parse_args()
 
     # Check for API key
@@ -232,8 +246,9 @@ def main():
         print("🔍 Reviewing changes...")
         review_content = format_diff_review(changed_files, diff_content)
 
-    # Get review from Claude
-    review = review_code(review_content, model="openai/gpt-4.1")
+
+    # Get review from LLM
+    review = review_code(review_content, model="openai/gpt-4.1", prompt_file=args.prompt_file)
 
     print("\n" + "="*60)
     # check if we have the `glow` binary available
