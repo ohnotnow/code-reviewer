@@ -20,6 +20,7 @@ The primary test: "Could you read this code aloud to a non-programmer and have t
 - Descriptive variable and function names
 - Code that expresses business logic clearly
 - Logical flow that's easy to follow
+- Code that seems to have changed, but no sign of tests being updated
 
 **Flag:**
 - Single-letter variables (except standard loop counters)
