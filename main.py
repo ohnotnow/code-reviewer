@@ -92,7 +92,7 @@ def get_git_diff_content(files: List[str], diff_mode: str) -> str:
     if diff_mode == "uncommitted":
         success, output = run_command(['git', 'diff', 'HEAD'] + files)
     else:
-        success, output = run_command(['git', 'diff', 'HEAD^', 'HEAD'])
+        success, output = run_command(['git', 'show'])
 
     if not success:
         print(f"⚠️  Warning: Could not get git diff: {output}")
