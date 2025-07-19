@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Code Review CLI Tool
-A friendly code reviewer powered by Claude for PHP/Laravel projects.
+A friendly code reviewer powered by an LLM.
 """
 
 import argparse
@@ -17,7 +17,7 @@ import litellm
 # Configuration
 MAX_SINGLE_FILE_LINES = 500
 MAX_TOTAL_DIFF_LINES = 1000
-SUPPORTED_EXTENSIONS = {'.php', '.blade.php'}
+SUPPORTED_EXTENSIONS = {'.php', '.py', '.js'}
 
 def run_command(cmd: List[str]) -> Tuple[bool, str]:
     """Run a shell command and return success status and output."""
@@ -30,8 +30,8 @@ def run_command(cmd: List[str]) -> Tuple[bool, str]:
         return False, f"Command not found: {cmd[0]}"
 
 
-def is_php_file(filepath: str) -> bool:
-    """Check if file is a PHP file we should review."""
+def is_supported_file(filepath: str) -> bool:
+    """Check if file is a supported file we should review."""
     path = Path(filepath)
     return path.suffix in SUPPORTED_EXTENSIONS
 
@@ -41,6 +41,35 @@ def count_lines(content: str) -> int:
     return len([line for line in content.split('\n') if line.strip()])
 
 
+def extract_supported_files(git_output: str, parse_status: bool = True) -> List[str]:
+    """Extract supported files from git output.
+
+    Args:
+        git_output: Output from a git command.
+        parse_status: Whether to parse the first 2 characters as git status.
+
+    Returns:
+        List of supported file paths.
+    """
+    changed_files = []
+    for line in git_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+
+        if parse_status:
+            status = line[:2]
+            filename = line[2:].strip()
+            if 'D' in status:
+                continue
+        else:
+            filename = line
+
+        if is_supported_file(filename) and Path(filename).exists():
+            changed_files.append(filename)
+
+    return changed_files
+
 def get_git_changed_files() -> List[str]:
     """Get list of changed files from git status."""
     success, output = run_command(['git', 'status', '--porcelain'])
@@ -49,20 +78,7 @@ def get_git_changed_files() -> List[str]:
         print(f"❌ Error getting git status: {output}")
         return []
 
-    changed_files = []
-    for line in output.split('\n'):
-        if line.strip():
-            # Parse git status output: first two chars are status, rest is filename
-            status = line[:2]
-            filename = line[3:].strip()
-
-            # Skip deleted files
-            if 'D' in status:
-                continue
-
-            # Only include PHP files
-            if is_php_file(filename) and Path(filename).exists():
-                changed_files.append(filename)
+    changed_files = extract_supported_files(output, parse_status=True)
 
     return changed_files
 
@@ -72,7 +88,8 @@ def get_git_last_commit_files() -> List[str]:
     if not success:
         print(f"❌ Error getting git last commit files: {output}")
         return []
-    return output.split('\n')
+
+    return extract_supported_files(output, parse_status=False)
 
 def read_file_content(filepath: str) -> Optional[str]:
     """Read file content, return None if file doesn't exist or can't be read."""
@@ -83,7 +100,6 @@ def read_file_content(filepath: str) -> Optional[str]:
         print(f"❌ Error reading {filepath}: {e}")
         return None
 
-
 def get_git_diff_content(files: List[str], diff_mode: str) -> str:
     """Get git diff content for specified files."""
     if not files:
@@ -92,7 +108,7 @@ def get_git_diff_content(files: List[str], diff_mode: str) -> str:
     if diff_mode == "uncommitted":
         success, output = run_command(['git', 'diff', 'HEAD'] + files)
     else:
-        success, output = run_command(['git', 'show'])
+        success, output = run_command(['git', 'diff', 'HEAD^', 'HEAD'] + files)
 
     if not success:
         print(f"⚠️  Warning: Could not get git diff: {output}")
@@ -100,54 +116,39 @@ def get_git_diff_content(files: List[str], diff_mode: str) -> str:
 
     return output
 
-
-def format_single_file_review(filepath: str, content: str) -> str:
-    """Format content for single file review."""
-    return f"""Please review this PHP file: {filepath}
-
-```php
-{content}
-```
-
-Please provide a friendly code review focusing on readability, Laravel best practices, and potential improvements."""
-
-
-def format_diff_review(files: List[str], diff_content: str) -> str:
-    """Format content for git diff review."""
-    file_list = ", ".join(files)
-    return f"""Please review the changes in these files: {file_list}
-
-Here's the git diff showing what has changed:
-
-```diff
-{diff_content}
-```
-
-Please provide a friendly code review focusing on the changes made, highlighting good practices and suggesting improvements where appropriate."""
-
 def get_system_prompt(prompt_file: str = None) -> str:
     """Get the system prompt for the code review."""
     if prompt_file:
         prompt_file = Path(prompt_file).expanduser()
         if prompt_file.exists():
+            print(f"Using prompt file: {prompt_file}")
             with open(prompt_file, "r", encoding="utf-8") as f:
                 return f.read()
         else:
             print(f"❌ Error: Prompt file {prompt_file} does not exist")
             sys.exit(1)
 
-    if Path("~/.code-review-prompt.md").expanduser().exists():
-        with open(Path("~/.code-review-prompt.md").expanduser(), "r", encoding="utf-8") as f:
-            return f.read()
+    default_prompt_locations = [Path("~/.code-review-prompt.md").expanduser(), Path(__file__).parent / "system_prompt.md"]
+    for prompt_file in default_prompt_locations:
+        if prompt_file.exists():
+            print(f"Using default prompt file: {prompt_file}")
+            with open(prompt_file, "r", encoding="utf-8") as f:
+                return f.read()
 
-    script_dir = Path(__file__).parent
-    with open(script_dir / "system_prompt.md", "r", encoding="utf-8") as f:
-        return f.read()
+    print(f"❌ Error: No prompt file found in {default_prompt_locations}")
+    sys.exit(1)
 
-def review_code(content: str, model: str = "openai/gpt-4.1", prompt_file: str = None) -> str:
+
+def review_code(content: str, model: str = "openai/gpt-4.1", prompt_file: str = None, debug: bool = False) -> str:
     """Send code to LLM for review."""
     system_prompt = get_system_prompt(prompt_file)
     litellm.drop_params = True
+    if debug:
+        print("="*60)
+        print(f"SYSTEM PROMPT: {system_prompt}")
+        print("="*60)
+        print(f"CONTENT: {content}")
+        print("="*60)
     try:
         response = completion(
             model=model,
@@ -162,7 +163,7 @@ def review_code(content: str, model: str = "openai/gpt-4.1", prompt_file: str = 
         return str(response.choices[0].message.content)
 
     except Exception as e:
-        return f"❌ Error getting review from Claude: {e}"
+        return f"❌ Error getting review from LLM: {e}"
 
 
 def main():
@@ -194,9 +195,12 @@ def main():
         default=None,
         help='Specific prompt file to use for this run'
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug mode'
+    )
     args = parser.parse_args()
-
-    # Check for API key
 
     # Check if we're in a git repository
     success, _ = run_command(['git', 'rev-parse', '--git-dir'])
@@ -210,23 +214,17 @@ def main():
             print(f"❌ Error: File {args.file} does not exist")
             sys.exit(1)
 
-        if not is_php_file(args.file):
-            print(f"❌ Error: {args.file} is not a PHP file")
+        review_content = read_file_content(args.file)
+        if review_content is None:
+            print(f"❌ Error: File {args.file} is empty")
             sys.exit(1)
 
-        content = read_file_content(args.file)
-        if content is None:
-            sys.exit(1)
-
-        line_count = count_lines(content)
+        line_count = count_lines(review_content)
         if line_count > args.max_lines:
             response = input(f"⚠️  File has {line_count} lines (max: {args.max_lines}). Continue? [y/N]: ")
             if response.lower() != 'y':
                 print("Review cancelled.")
                 sys.exit(0)
-
-        print(f"🔍 Reviewing {args.file}...")
-        review_content = format_single_file_review(args.file, content)
 
     else:
         # Review git changes
@@ -238,10 +236,10 @@ def main():
             changed_files = get_git_last_commit_files()
 
         if not changed_files:
-            print("✅ No PHP files have been changed.")
+            print("❌ Error: Couldn't find any changed files.")
             sys.exit(0)
 
-        print(f"📁 Found {len(changed_files)} changed PHP file(s): {', '.join(changed_files)}")
+        print(f"📁 Found {len(changed_files)} changed file(s): {', '.join(changed_files)}")
 
         # Get diff content and check size
         diff_content = get_git_diff_content(changed_files, diff_mode)
@@ -253,13 +251,10 @@ def main():
                 if response.lower() != 'y':
                     print("Consider reviewing files one at a time with: cr <filename>")
                     sys.exit(0)
-
-        print("🔍 Reviewing changes...")
-        review_content = format_diff_review(changed_files, diff_content)
-
+        review_content = diff_content
 
     # Get review from LLM
-    review = review_code(review_content, model="openai/gpt-4.1", prompt_file=args.prompt_file)
+    review = review_code(review_content, model=args.model, prompt_file=args.prompt_file, debug=args.debug)
 
     print("\n" + "="*60)
     # check if we have the `glow` binary available
