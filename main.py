@@ -186,7 +186,7 @@ def main():
     parser.add_argument(
         '--model',
         type=str,
-        default="openai/gpt-4.1",
+        default="openai/o4-mini",
         help='Model to use for code review (default: openai/gpt-4.1)'
     )
     parser.add_argument(

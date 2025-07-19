@@ -113,7 +113,7 @@ cr() {
   Show help message and exit.
 
 - `--model <model_name>`
-  Model name to use for the LLM (default: `openai/gpt-4.1`).
+  Model name to use for the LLM (default: `openai/o4-mini`).
 
 - `--prompt-file <specific-prompt.md>`
   Use a specific code-review prompt file for this run.  This can also be handy to set up aliases where you pass a specific prompt for, say, golang/python/typescript etc.
