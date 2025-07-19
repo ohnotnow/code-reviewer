@@ -11,13 +11,8 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 import tempfile
-
-try:
-    from litellm import completion
-    import litellm
-except ImportError:
-    print("❌ Error: litellm not installed. Run: pip install litellm")
-    sys.exit(1)
+from litellm import completion
+import litellm
 
 # Configuration
 MAX_SINGLE_FILE_LINES = 500
@@ -71,6 +66,13 @@ def get_git_changed_files() -> List[str]:
 
     return changed_files
 
+def get_git_last_commit_files() -> List[str]:
+    """Get list of files changed in the last commit."""
+    success, output = run_command(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'])
+    if not success:
+        print(f"❌ Error getting git last commit files: {output}")
+        return []
+    return output.split('\n')
 
 def read_file_content(filepath: str) -> Optional[str]:
     """Read file content, return None if file doesn't exist or can't be read."""
@@ -82,12 +84,16 @@ def read_file_content(filepath: str) -> Optional[str]:
         return None
 
 
-def get_git_diff_content(files: List[str]) -> str:
+def get_git_diff_content(files: List[str], diff_mode: str) -> str:
     """Get git diff content for specified files."""
     if not files:
         return ""
 
-    success, output = run_command(['git', 'diff', 'HEAD'] + files)
+    if diff_mode == "uncommitted":
+        success, output = run_command(['git', 'diff', 'HEAD'] + files)
+    else:
+        success, output = run_command(['git', 'diff', 'HEAD^', 'HEAD'])
+
     if not success:
         print(f"⚠️  Warning: Could not get git diff: {output}")
         return ""
@@ -224,7 +230,12 @@ def main():
 
     else:
         # Review git changes
+        diff_mode = "uncommitted"
         changed_files = get_git_changed_files()
+
+        if not changed_files:
+            diff_mode = "last-commit"
+            changed_files = get_git_last_commit_files()
 
         if not changed_files:
             print("✅ No PHP files have been changed.")
@@ -233,7 +244,7 @@ def main():
         print(f"📁 Found {len(changed_files)} changed PHP file(s): {', '.join(changed_files)}")
 
         # Get diff content and check size
-        diff_content = get_git_diff_content(changed_files)
+        diff_content = get_git_diff_content(changed_files, diff_mode)
         if diff_content:
             diff_lines = count_lines(diff_content)
             if diff_lines > MAX_TOTAL_DIFF_LINES:
