@@ -6,6 +6,7 @@ A friendly code reviewer powered by an LLM.
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,16 +19,38 @@ import litellm
 MAX_SINGLE_FILE_LINES = 500
 MAX_TOTAL_DIFF_LINES = 1000
 SUPPORTED_EXTENSIONS = {'.php', '.py', '.js'}
+DEFAULT_MODEL = "openai/o4-mini"
 
-def run_command(cmd: List[str]) -> Tuple[bool, str]:
-    """Run a shell command and return success status and output."""
+
+# Error handling classes
+class ReviewError(Exception):
+    """Base exception for review operations."""
+    pass
+
+
+class GitError(ReviewError):
+    """Git operation failed."""
+    pass
+
+
+class FileError(ReviewError):
+    """File operation failed."""
+    pass
+
+
+class LLMError(ReviewError):
+    """LLM API operation failed."""
+    pass
+
+def run_command(cmd: List[str]) -> str:
+    """Run a shell command and return output, raise GitError on failure."""
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return True, result.stdout.strip()
+        return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        return False, e.stderr.strip()
+        raise GitError(f"Command failed: {' '.join(cmd)}\n{e.stderr.strip()}")
     except FileNotFoundError:
-        return False, f"Command not found: {cmd[0]}"
+        raise GitError(f"Command not found: {cmd[0]}")
 
 
 def is_supported_file(filepath: str) -> bool:
@@ -72,79 +95,85 @@ def extract_supported_files(git_output: str, parse_status: bool = True) -> List[
 
 def get_git_changed_files(since_commit: str = None) -> List[str]:
     """Get list of changed files from git status."""
-    if since_commit:
-        success, output = run_command(['git', 'diff', since_commit, 'HEAD'])
-    else:
-        success, output = run_command(['git', 'status', '--porcelain'])
+    try:
+        if since_commit:
+            output = run_command(['git', 'diff', '--name-only', since_commit, 'HEAD'])
+            parse_status = False
+        else:
+            output = run_command(['git', 'status', '--porcelain'])
+            parse_status = True
 
-    if not success:
-        print(f"❌ Error getting git status: {output}")
-        return []
-
-    changed_files = extract_supported_files(output, parse_status=True)
-
-    return changed_files
+        changed_files = extract_supported_files(output, parse_status=parse_status)
+        return changed_files
+    except GitError:
+        # Re-raise git errors as-is
+        raise
 
 def get_git_last_commit_files() -> List[str]:
     """Get list of files changed in the last commit."""
-    success, output = run_command(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'])
-    if not success:
-        print(f"❌ Error getting git last commit files: {output}")
-        return []
+    try:
+        output = run_command(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'])
+        return extract_supported_files(output, parse_status=False)
+    except GitError:
+        # Re-raise git errors as-is
+        raise
 
-    return extract_supported_files(output, parse_status=False)
-
-def read_file_content(filepath: str) -> Optional[str]:
-    """Read file content, return None if file doesn't exist or can't be read."""
+def read_file_content(filepath: str) -> str:
+    """Read file content, raise FileError on failure."""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             return f.read()
     except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
-        print(f"❌ Error reading {filepath}: {e}")
-        return None
+        raise FileError(f"Error reading {filepath}: {e}")
 
 def get_git_diff_content(files: List[str], diff_mode: str) -> str:
     """Get git diff content for specified files."""
     if not files:
         return ""
 
-    if diff_mode == "uncommitted":
-        success, output = run_command(['git', 'diff', 'HEAD'] + files)
-    else:
-        success, output = run_command(['git', 'diff', 'HEAD^', 'HEAD'] + files)
-
-    if not success:
-        print(f"⚠️  Warning: Could not get git diff: {output}")
+    try:
+        if diff_mode == "uncommitted":
+            output = run_command(['git', 'diff', 'HEAD'] + files)
+        else:
+            output = run_command(['git', 'diff', 'HEAD^', 'HEAD'] + files)
+        return output
+    except GitError as e:
+        print(f"⚠️  Warning: Could not get git diff: {e}")
         return ""
-
-    return output
 
 def get_system_prompt(prompt_file: str = None) -> str:
     """Get the system prompt for the code review."""
     if prompt_file:
         prompt_file = Path(prompt_file).expanduser()
-        if prompt_file.exists():
-            print(f"Using prompt file: {prompt_file}")
+        if not prompt_file.exists():
+            raise FileError(f"Prompt file {prompt_file} does not exist")
+        print(f"Using prompt file: {prompt_file}")
+        try:
             with open(prompt_file, "r", encoding="utf-8") as f:
                 return f.read()
-        else:
-            print(f"❌ Error: Prompt file {prompt_file} does not exist")
-            sys.exit(1)
+        except (PermissionError, UnicodeDecodeError) as e:
+            raise FileError(f"Error reading prompt file {prompt_file}: {e}")
 
     default_prompt_locations = [Path("~/.code-review-prompt.md").expanduser(), Path(__file__).parent / "system_prompt.md"]
-    for prompt_file in default_prompt_locations:
-        if prompt_file.exists():
-            print(f"Using default prompt file: {prompt_file}")
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                return f.read()
+    for prompt_path in default_prompt_locations:
+        if prompt_path.exists():
+            print(f"Using default prompt file: {prompt_path}")
+            try:
+                with open(prompt_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except (PermissionError, UnicodeDecodeError) as e:
+                continue  # Try next location
 
-    print(f"❌ Error: No prompt file found in {default_prompt_locations}")
-    sys.exit(1)
+    raise FileError(f"No prompt file found in {default_prompt_locations}")
 
 
-def review_code(content: str, model: str = "openai/gpt-4.1", prompt_file: str = None, debug: bool = False) -> str:
+def review_code(content: str, model: str = DEFAULT_MODEL, prompt_file: str = None, debug: bool = False) -> str:
     """Send code to LLM for review."""
-    system_prompt = get_system_prompt(prompt_file)
+    try:
+        system_prompt = get_system_prompt(prompt_file)
+    except FileError:
+        # Re-raise file errors as-is
+        raise
     litellm.drop_params = True
     if debug:
         print("="*60)
@@ -166,7 +195,7 @@ def review_code(content: str, model: str = "openai/gpt-4.1", prompt_file: str = 
         return str(response.choices[0].message.content)
 
     except Exception as e:
-        return f"❌ Error getting review from LLM: {e}"
+        raise LLMError(f"Error getting review from LLM: {e}")
 
 
 def main():
@@ -196,8 +225,8 @@ def main():
     parser.add_argument(
         '--model',
         type=str,
-        default="openai/o4-mini",
-        help='Model to use for code review (default: openai/gpt-4.1)'
+        default=DEFAULT_MODEL,
+        help=f'Model to use for code review (default: {DEFAULT_MODEL})'
     )
     parser.add_argument(
         '--prompt-file',
@@ -213,8 +242,9 @@ def main():
     args = parser.parse_args()
 
     # Check if we're in a git repository
-    success, _ = run_command(['git', 'rev-parse', '--git-dir'])
-    if not success:
+    try:
+        run_command(['git', 'rev-parse', '--git-dir'])
+    except GitError:
         print("❌ Error: Not in a git repository")
         sys.exit(1)
 
@@ -224,8 +254,13 @@ def main():
             print(f"❌ Error: File {args.file} does not exist")
             sys.exit(1)
 
-        review_content = read_file_content(args.file)
-        if review_content is None:
+        try:
+            review_content = read_file_content(args.file)
+        except FileError as e:
+            print(f"❌ {e}")
+            sys.exit(1)
+            
+        if not review_content.strip():
             print(f"❌ Error: File {args.file} is empty")
             sys.exit(1)
 
@@ -239,15 +274,19 @@ def main():
     else:
         # Review git changes
         diff_mode = "uncommitted"
-        changed_files = get_git_changed_files(args.since_commit)
+        try:
+            changed_files = get_git_changed_files(args.since_commit)
 
-        if not changed_files:
-            diff_mode = "last-commit"
-            changed_files = get_git_last_commit_files()
+            if not changed_files:
+                diff_mode = "last-commit"
+                changed_files = get_git_last_commit_files()
 
-        if not changed_files:
-            print("❌ Error: Couldn't find any changed files.")
-            sys.exit(0)
+            if not changed_files:
+                print("❌ Error: Couldn't find any changed files.")
+                sys.exit(0)
+        except GitError as e:
+            print(f"❌ {e}")
+            sys.exit(1)
 
         print(f"📁 Found {len(changed_files)} changed file(s): {', '.join(changed_files)}")
 
@@ -264,11 +303,15 @@ def main():
         review_content = diff_content
 
     # Get review from LLM
-    review = review_code(review_content, model=args.model, prompt_file=args.prompt_file, debug=args.debug)
+    try:
+        review = review_code(review_content, model=args.model, prompt_file=args.prompt_file, debug=args.debug)
+    except (FileError, LLMError) as e:
+        print(f"❌ {e}")
+        sys.exit(1)
 
     print("\n" + "="*60)
     # check if we have the `glow` binary available
-    if run_command(['which', 'glow'])[0]:
+    if shutil.which('glow'):
         # use glow to print the review by passing it as stdin
         subprocess.run(['glow', '-s', 'dracula'], input=review.encode('utf-8'))
     else:
