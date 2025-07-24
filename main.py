@@ -275,12 +275,13 @@ class GitHelper:
             # Re-raise git errors as-is
             raise
 
-    def get_diff_content(self, files: List[str], diff_mode: str) -> str:
+    def get_diff_content(self, files: List[str], diff_mode: str, since_commit: Optional[str] = None) -> str:
         """Get git diff content for specified files.
         
         Args:
             files: List of files to get diff for
-            diff_mode: Either 'uncommitted' or 'last-commit'
+            diff_mode: Either 'uncommitted', 'last-commit', or 'since-commit'
+            since_commit: Commit to compare against (used when diff_mode is 'since-commit')
             
         Returns:
             Git diff content as string
@@ -290,7 +291,10 @@ class GitHelper:
             return ""
 
         try:
-            if diff_mode == "uncommitted":
+            if diff_mode == "since-commit" and since_commit:
+                self.logger.debug(f"Getting diff since commit: {since_commit}")
+                output = run_command(['git', 'diff', since_commit, 'HEAD'] + files)
+            elif diff_mode == "uncommitted":
                 self.logger.debug("Getting uncommitted changes diff")
                 output = run_command(['git', 'diff', 'HEAD'] + files)
             else:
@@ -684,8 +688,12 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
     if logger is None:
         logger = logging.getLogger('codereviewer')
         
-    diff_mode = "uncommitted"
-    changed_files = git.get_changed_files(since_commit)
+    if since_commit:
+        diff_mode = "since-commit"
+        changed_files = git.get_changed_files(since_commit)
+    else:
+        diff_mode = "uncommitted"
+        changed_files = git.get_changed_files()
 
     if not changed_files:
         diff_mode = "last-commit"
@@ -697,7 +705,7 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
     logger.info(f"Found {len(changed_files)} changed file(s): {', '.join(changed_files)}")
 
     # Get diff content and check size
-    diff_content = git.get_diff_content(changed_files, diff_mode)
+    diff_content = git.get_diff_content(changed_files, diff_mode, since_commit)
     if diff_content:
         diff_lines = count_lines(diff_content)
         if diff_lines > config.max_total_diff_lines:
