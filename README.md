@@ -1,6 +1,6 @@
 # Code Reviewer
 
-A friendly command-line code review tool for PHP/Laravel projects powered by an LLM.
+A friendly command-line code review tool for projects powered by an LLM.
 
 Repository: https://github.com/ohnotnow/code-reviewer
 
@@ -17,17 +17,17 @@ Repository: https://github.com/ohnotnow/code-reviewer
 ---
 
 ## Features
-- Reviews either a single PHP/Blade file or all staged PHP changes in a Git repo
+- Reviews either a single file or all changes in a Git repo
 - Enforces a maximum line count per file or total diff
-- Provides structured, emoji-driven feedback on readability, Laravel best practices, defensive coding, and more
-- Powered by an LLM (via `litellm`) with a clear system prompt tuned for PHP/Laravel teams
+- Provides structured, emoji-driven feedback on readability, best practices, defensive coding, and more
+- Powered by an LLM (via `litellm`) with a clear system prompt tuned for practical teams
 
 ---
 
 ## Prerequisites
 - Git (any recent version)
 - Python 3.8+
-- Claude API access (via `litellm`)
+- LLM API access (via `litellm`)
 - [UV CLI tool](https://docs.astral.sh/uv/) installed
 
 ---
