@@ -285,6 +285,9 @@ class GitHelper:
             
         Returns:
             Git diff content as string
+            
+        Raises:
+            GitError: If git diff command fails (e.g., invalid commit hash)
         """
         if not files:
             self.logger.debug("No files provided for diff")
@@ -304,9 +307,9 @@ class GitHelper:
             word_count = len(output.split())
             self.logger.info(f"Retrieved diff content ({word_count} words)")
             return output
-        except GitError as e:
-            self.logger.warning(f"Could not get git diff: {e}")
-            return ""
+        except GitError:
+            # Re-raise git errors - don't hide them with empty string
+            raise
 
 
 def read_file_content(filepath: str) -> str:
@@ -385,7 +388,7 @@ class CodeReviewer:
         self.logger = logger or logging.getLogger('codereviewer')
         
     def review_file(self, filepath: str, max_lines: int, model: Optional[str] = None, 
-                   prompt_file: Optional[str] = None, debug: bool = False) -> str:
+                   prompt_file: Optional[str] = None, debug: bool = False, yes: bool = False) -> str:
         """Review a single file.
         
         Args:
@@ -394,17 +397,18 @@ class CodeReviewer:
             model: LLM model to use (optional)
             prompt_file: Custom prompt file (optional)
             debug: Enable debug output
+            yes: Skip user prompts and automatically proceed
             
         Returns:
             Review content from LLM
         """
         self.logger.debug(f"Starting single file review: {filepath}")
-        content = review_single_file(filepath, max_lines)
+        content = review_single_file(filepath, max_lines, yes)
         return self.get_review(content, model, prompt_file, debug)
         
     def review_changes(self, git: GitHelper, since_commit: Optional[str] = None, 
                       model: Optional[str] = None, prompt_file: Optional[str] = None, 
-                      debug: bool = False) -> str:
+                      debug: bool = False, yes: bool = False) -> str:
         """Review git changes.
         
         Args:
@@ -413,12 +417,13 @@ class CodeReviewer:
             model: LLM model to use (optional)
             prompt_file: Custom prompt file (optional)
             debug: Enable debug output
+            yes: Skip user prompts and automatically proceed
             
         Returns:
             Review content from LLM
         """
         self.logger.debug(f"Starting git changes review (since_commit: {since_commit})")
-        content = review_git_changes(git, self.config, since_commit, self.logger)
+        content = review_git_changes(git, self.config, since_commit, yes, self.logger)
         return self.get_review(content, model, prompt_file, debug)
         
     def get_review(self, content: str, model: Optional[str] = None, 
@@ -456,11 +461,11 @@ class CodeReviewer:
         litellm.drop_params = True
         if debug:
             litellm._turn_on_debug()  # Enable LiteLLM debugging
-            print("="*60)
-            print(f"SYSTEM PROMPT: {system_prompt}")
-            print("="*60)
-            print(f"CONTENT: {content}")
-            print("="*60)
+            self.logger.debug("="*60)
+            self.logger.debug(f"SYSTEM PROMPT: {system_prompt}")
+            self.logger.debug("="*60)
+            self.logger.debug(f"CONTENT: {content}")
+            self.logger.debug("="*60)
             
         try:
             response = completion(
@@ -633,15 +638,21 @@ def create_parser(config: Config) -> argparse.ArgumentParser:
         action='store_true',
         help='Enable debug mode with verbose logging'
     )
+    parser.add_argument(
+        '--yes', '-y',
+        action='store_true',
+        help='Automatically answer yes to prompts (useful for CI/automation)'
+    )
     return parser
 
 
-def review_single_file(filepath: str, max_lines: int) -> str:
+def review_single_file(filepath: str, max_lines: int, yes: bool = False) -> str:
     """Review a single file and return its content.
     
     Args:
         filepath: Path to file to review
         max_lines: Maximum lines allowed before user confirmation
+        yes: Skip user prompts and automatically proceed
         
     Returns:
         File content as string
@@ -661,20 +672,26 @@ def review_single_file(filepath: str, max_lines: int) -> str:
 
     line_count = count_lines(content)
     if line_count > max_lines:
-        response = input(f"⚠️  File has {line_count} lines (max: {max_lines}). Continue? [y/N]: ")
-        if response.lower() != 'y':
-            raise UserCancelledError("Review cancelled by user")
+        if yes:
+            # Auto-proceed when --yes flag is used
+            pass
+        else:
+            response = input(f"⚠️  File has {line_count} lines (max: {max_lines}). Continue? [y/N]: ")
+            if response.lower() != 'y':
+                raise UserCancelledError("Review cancelled by user")
     
     return content
 
 
-def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[str] = None, logger: Optional[logging.Logger] = None) -> str:
+def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[str] = None, 
+                      yes: bool = False, logger: Optional[logging.Logger] = None) -> str:
     """Review git changes and return diff content.
     
     Args:
         git: GitHelper instance
         config: Configuration instance
         since_commit: Compare against this commit (optional)
+        yes: Skip user prompts and automatically proceed
         logger: Logger for info messages
         
     Returns:
@@ -709,9 +726,13 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
     if diff_content:
         diff_lines = count_lines(diff_content)
         if diff_lines > config.max_total_diff_lines:
-            response = input(f"⚠️  Large diff detected ({diff_lines} lines). Continue with full diff review? [y/N]: ")
-            if response.lower() != 'y':
-                raise UserCancelledError("Consider reviewing files one at a time with: cr <filename>")
+            if yes:
+                # Auto-proceed when --yes flag is used
+                pass
+            else:
+                response = input(f"⚠️  Large diff detected ({diff_lines} lines). Continue with full diff review? [y/N]: ")
+                if response.lower() != 'y':
+                    raise UserCancelledError("Consider reviewing files one at a time with: cr <filename>")
         
         # Wrap diff content in markdown code block for better LLM understanding
         diff_content = f"```diff\n{diff_content}\n```"
@@ -719,23 +740,36 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
     return diff_content
 
 
-def display_review(review: str, config: Config) -> None:
+def has_glow() -> bool:
+    """Check if glow markdown renderer is available.
+    
+    Returns:
+        True if glow command is available, False otherwise
+    """
+    return shutil.which('glow') is not None
+
+
+def display_review(review: str, config: Config, logger: Optional[logging.Logger] = None) -> None:
     """Display the review using glow if available, otherwise plain text.
     
     Args:
         review: Review content to display
         config: Configuration containing glow style settings
+        logger: Logger for warnings and debug output
     """
+    if logger is None:
+        logger = logging.getLogger('codereviewer')
+        
     print("\n" + "="*60)
     
     # Check if review content exists
     if not review or not review.strip():
-        print("⚠️  No review content received from LLM")
+        logger.warning("No review content received from LLM")
         print("="*60)
         return
     
     # Try to use glow for better formatting
-    if shutil.which('glow'):
+    if has_glow():
         try:
             result = subprocess.run(
                 ['glow', '-s', config.glow_style], 
@@ -776,7 +810,7 @@ def main() -> None:
         config = Config.from_env()
         logger.debug(f"Configuration loaded: {config}")
     except ValueError as e:
-        print(f"❌ Configuration error: {e}")
+        logger.error(f"Configuration error: {e}")
         sys.exit(1)
         
     git = GitHelper(config, logger)
@@ -791,29 +825,26 @@ def main() -> None:
         git.check_git_repo()
     except GitError as e:
         logger.error(f"Git repository check failed: {e}")
-        print(f"❌ Error: {e}")
         sys.exit(1)
 
     # Get review from LLM
     try:
         if args.file:
             logger.info(f"Starting single file review: {args.file}")
-            review = reviewer.review_file(args.file, args.max_lines, args.model, args.prompt_file, args.debug)
+            review = reviewer.review_file(args.file, args.max_lines, args.model, args.prompt_file, args.debug, args.yes)
         else:
             logger.debug("Starting git changes review")
-            review = reviewer.review_changes(git, args.since_commit, args.model, args.prompt_file, args.debug)
+            review = reviewer.review_changes(git, args.since_commit, args.model, args.prompt_file, args.debug, args.yes)
     except (FileError, LLMError, GitError) as e:
         logger.error(f"Review failed: {e}")
-        print(f"❌ {e}")
         sys.exit(1)
     except UserCancelledError as e:
         logger.info(f"Review cancelled: {e}")
-        print(str(e))
         sys.exit(0)
 
     # Display results
     logger.debug("Displaying review results")
-    display_review(review, config)
+    display_review(review, config, logger)
 
 
 if __name__ == "__main__":
