@@ -712,6 +712,9 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
             response = input(f"⚠️  Large diff detected ({diff_lines} lines). Continue with full diff review? [y/N]: ")
             if response.lower() != 'y':
                 raise UserCancelledError("Consider reviewing files one at a time with: cr <filename>")
+        
+        # Wrap diff content in markdown code block for better LLM understanding
+        diff_content = f"```diff\n{diff_content}\n```"
     
     return diff_content
 
