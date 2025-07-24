@@ -70,9 +70,12 @@ def extract_supported_files(git_output: str, parse_status: bool = True) -> List[
 
     return changed_files
 
-def get_git_changed_files() -> List[str]:
+def get_git_changed_files(since_commit: str = None) -> List[str]:
     """Get list of changed files from git status."""
-    success, output = run_command(['git', 'status', '--porcelain'])
+    if since_commit:
+        success, output = run_command(['git', 'diff', since_commit, 'HEAD'])
+    else:
+        success, output = run_command(['git', 'status', '--porcelain'])
 
     if not success:
         print(f"❌ Error getting git status: {output}")
@@ -178,6 +181,13 @@ def main():
         help='Specific file to review (if not provided, reviews git changes)'
     )
     parser.add_argument(
+        '--since-commit',
+        type=str,
+        default=None,
+        required=False,
+        help='Review changes since a specific commit'
+    )
+    parser.add_argument(
         '--max-lines',
         type=int,
         default=MAX_SINGLE_FILE_LINES,
@@ -229,7 +239,7 @@ def main():
     else:
         # Review git changes
         diff_mode = "uncommitted"
-        changed_files = get_git_changed_files()
+        changed_files = get_git_changed_files(args.since_commit)
 
         if not changed_files:
             diff_mode = "last-commit"
