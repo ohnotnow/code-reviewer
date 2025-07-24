@@ -20,6 +20,9 @@ import tempfile
 from litellm import completion
 import litellm
 
+# Loggers to suppress in non-debug mode
+SUPPRESSED_LOGGERS = ['LiteLLM', 'httpx']
+
 @dataclass
 class Config:
     """Configuration settings for the code reviewer.
@@ -153,6 +156,12 @@ def setup_logging(debug: bool = False) -> logging.Logger:
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[handler]
     )
+    
+    # Suppress noisy third-party loggers unless in debug mode
+    if not debug:
+        for logger_name in SUPPRESSED_LOGGERS:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
+    
     return logging.getLogger(__name__)
 
 
@@ -234,7 +243,7 @@ class GitHelper:
                 parse_status = True
 
             changed_files = self.extract_supported_files(output, parse_status=parse_status)
-            self.logger.info(f"Found {len(changed_files)} changed files")
+            # Removed redundant log - the file list below is more informative
             return changed_files
         except GitError:
             # Re-raise git errors as-is
@@ -281,7 +290,8 @@ class GitHelper:
                 self.logger.debug("Getting last commit diff")
                 output = run_command(['git', 'diff', 'HEAD^', 'HEAD'] + files)
             
-            self.logger.info(f"Retrieved diff content ({len(output)} characters)")
+            word_count = len(output.split())
+            self.logger.info(f"Retrieved diff content ({word_count} words)")
             return output
         except GitError as e:
             self.logger.warning(f"Could not get git diff: {e}")
@@ -424,7 +434,7 @@ class CodeReviewer:
             raise
         
         model_to_use = model or self.config.default_model
-        self.logger.info(f"Sending review request to {model_to_use}")
+        self.logger.debug(f"Sending review request to {model_to_use}")
         self.logger.debug(f"Content length: {len(content)} characters")
         
         # Check if content is too large (rough estimate: 4 chars per token)
@@ -475,7 +485,7 @@ class CodeReviewer:
                 self.logger.warning(f"LLM returned empty string content. Raw value was: {repr(content_value)}")
                 raise LLMError("LLM response content is empty after processing")
                 
-            self.logger.info(f"Received review response ({len(review_content)} characters)")
+            self.logger.debug(f"Received review response ({len(review_content)} characters)")
             return review_content
 
         except Exception as e:
@@ -772,7 +782,7 @@ def main() -> None:
             logger.info(f"Starting single file review: {args.file}")
             review = reviewer.review_file(args.file, args.max_lines, args.model, args.prompt_file, args.debug)
         else:
-            logger.info("Starting git changes review")
+            logger.debug("Starting git changes review")
             review = reviewer.review_changes(git, args.since_commit, args.model, args.prompt_file, args.debug)
     except (FileError, LLMError, GitError) as e:
         logger.error(f"Review failed: {e}")
@@ -786,7 +796,6 @@ def main() -> None:
     # Display results
     logger.debug("Displaying review results")
     display_review(review, config)
-    logger.info("Code review completed successfully")
 
 
 if __name__ == "__main__":
