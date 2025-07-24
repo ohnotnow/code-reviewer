@@ -43,16 +43,51 @@ class Config:
     max_tokens: int = 1500
     temperature: float = 0.3
     glow_style: str = "dracula"
+    # Token estimation constants
+    token_estimate_chars_per_token: int = 4  # Rough estimate: 4 chars per token
+    max_estimated_tokens: int = 100000  # Conservative limit for most models
     
     @classmethod
     def from_env(cls) -> 'Config':
         """Load config from environment variables if needed.
         
+        Environment variables:
+            CODE_REVIEW_MODEL: Default LLM model (e.g., "openai/gpt-4")
+            CODE_REVIEW_MAX_TOKENS: Maximum tokens for LLM response
+            CODE_REVIEW_TEMPERATURE: LLM temperature (0.0-1.0)
+            CODE_REVIEW_MAX_SINGLE_FILE_LINES: Max lines for single file review
+            CODE_REVIEW_MAX_TOTAL_DIFF_LINES: Max lines for diff review
+            CODE_REVIEW_GLOW_STYLE: Glow markdown style theme
+        
         Returns:
             Config instance with settings from environment or defaults
         """
-        # For now, just return defaults. Can be extended later for env vars.
-        return cls()
+        def get_int_env(key: str, default: int) -> int:
+            value = os.getenv(key)
+            if value is None:
+                return default
+            try:
+                return int(value)
+            except ValueError:
+                return default
+                
+        def get_float_env(key: str, default: float) -> float:
+            value = os.getenv(key)
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except ValueError:
+                return default
+        
+        return cls(
+            max_single_file_lines=get_int_env('CODE_REVIEW_MAX_SINGLE_FILE_LINES', 500),
+            max_total_diff_lines=get_int_env('CODE_REVIEW_MAX_TOTAL_DIFF_LINES', 1000),
+            default_model=os.getenv('CODE_REVIEW_MODEL', "openai/o4-mini"),
+            max_tokens=get_int_env('CODE_REVIEW_MAX_TOKENS', 1500),
+            temperature=get_float_env('CODE_REVIEW_TEMPERATURE', 0.3),
+            glow_style=os.getenv('CODE_REVIEW_GLOW_STYLE', "dracula")
+        )
         
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -154,7 +189,7 @@ def setup_logging(debug: bool = False) -> logging.Logger:
     # Create a custom formatter for more readable timestamps
     formatter = logging.Formatter(
         fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%B %d, %-I:%M%p'
+        datefmt='%B %d, %I:%M%p'  # Removed %-I for Windows compatibility
     )
     handler.setFormatter(formatter)
     
@@ -453,9 +488,9 @@ class CodeReviewer:
         self.logger.debug(f"Sending review request to {model_to_use}")
         self.logger.debug(f"Content length: {len(content)} characters")
         
-        # Check if content is too large (rough estimate: 4 chars per token)
-        estimated_tokens = len(content + system_prompt) // 4
-        if estimated_tokens > 100000:  # Conservative limit for most models
+        # Check if content is too large based on token estimation
+        estimated_tokens = len(content + system_prompt) // self.config.token_estimate_chars_per_token
+        if estimated_tokens > self.config.max_estimated_tokens:
             raise LLMError(f"Content too large ({estimated_tokens:,} estimated tokens). Consider reviewing smaller chunks or individual files.")
         
         litellm.drop_params = True
