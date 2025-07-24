@@ -151,10 +151,17 @@ def setup_logging(debug: bool = False) -> logging.Logger:
     handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(level)
     
+    # Create a custom formatter for more readable timestamps
+    formatter = logging.Formatter(
+        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%B %d, %-I:%M%p'
+    )
+    handler.setFormatter(formatter)
+    
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[handler]
+        handlers=[handler],
+        force=True  # Allow reconfiguration
     )
     
     # Suppress noisy third-party loggers unless in debug mode
@@ -162,7 +169,7 @@ def setup_logging(debug: bool = False) -> logging.Logger:
         for logger_name in SUPPRESSED_LOGGERS:
             logging.getLogger(logger_name).setLevel(logging.ERROR)
     
-    return logging.getLogger(__name__)
+    return logging.getLogger('codereviewer')
 
 
 class GitHelper:
@@ -175,7 +182,7 @@ class GitHelper:
     
     def __init__(self, config: Config, logger: Optional[logging.Logger] = None):
         self.config = config
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger('codereviewer')
     
     def check_git_repo(self) -> None:
         """Check if we're in a git repository.
@@ -330,7 +337,7 @@ def get_system_prompt(prompt_file: Optional[str] = None, logger: Optional[loggin
         FileError: If no prompt file can be found or read
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger('codereviewer')
         
     if prompt_file:
         prompt_file_path = Path(prompt_file).expanduser()
@@ -371,7 +378,7 @@ class CodeReviewer:
     
     def __init__(self, config: Config, logger: Optional[logging.Logger] = None):
         self.config = config
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = logger or logging.getLogger('codereviewer')
         
     def review_file(self, filepath: str, max_lines: int, model: Optional[str] = None, 
                    prompt_file: Optional[str] = None, debug: bool = False) -> str:
@@ -675,7 +682,7 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
         GitError: If git operations fail
     """
     if logger is None:
-        logger = logging.getLogger(__name__)
+        logger = logging.getLogger('codereviewer')
         
     diff_mode = "uncommitted"
     changed_files = git.get_changed_files(since_commit)
