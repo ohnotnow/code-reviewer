@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from .config import Config
+from .time_parser import parse_time_duration
 
 
 def validate_max_lines(value: str) -> int:
@@ -85,6 +86,29 @@ def validate_prompt_file(value: str) -> str:
     return str(file_path)
 
 
+def validate_since_time(value: str) -> str:
+    """Validate since time argument.
+    
+    Args:
+        value: Time specification from command line
+        
+    Returns:
+        Validated time string
+        
+    Raises:
+        argparse.ArgumentTypeError: If time format is invalid
+    """
+    if not value or not value.strip():
+        raise argparse.ArgumentTypeError("since time cannot be empty")
+    
+    try:
+        # Test parsing to validate format
+        parse_time_duration(value.strip())
+        return value.strip()
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e))
+
+
 def create_parser(config: Config) -> argparse.ArgumentParser:
     """Create and configure the argument parser.
     
@@ -103,6 +127,13 @@ def create_parser(config: Config) -> argparse.ArgumentParser:
         'file',
         nargs='?',
         help='Specific file to review (if not provided, reviews git changes)'
+    )
+    parser.add_argument(
+        '--since',
+        type=validate_since_time,
+        default='today',
+        metavar='TIME',
+        help="Review changes since a specific time (default: 'today'). Formats: 'today', '1h', '30m', '2d'"
     )
     parser.add_argument(
         '--since-commit',

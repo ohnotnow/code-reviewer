@@ -102,7 +102,15 @@ def main() -> None:
             review = reviewer.get_review(content, args.model, args.prompt_file, args.debug)
         else:
             logger.debug("Starting git changes review")
-            content = review_git_changes(git, config, args.since_commit, args.yes, logger)
+            # Determine which since argument to use - prioritize explicit since_commit
+            if args.since_commit:
+                since_time = None
+                since_commit = args.since_commit
+            else:
+                since_time = args.since
+                since_commit = None
+            
+            content = review_git_changes(git, config, since_commit, since_time, args.yes, logger)
             review = reviewer.get_review(content, args.model, args.prompt_file, args.debug)
     except (FileError, LLMError, GitError) as e:
         logger.error(f"Review failed: {e}")

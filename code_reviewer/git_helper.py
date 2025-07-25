@@ -9,6 +9,7 @@ from typing import List, Optional
 from .config import Config
 from .exceptions import GitError
 from .file_utils import run_command, is_supported_file
+from .time_parser import parse_time_duration, datetime_to_git_format
 
 
 class GitHelper:
@@ -34,6 +35,45 @@ class GitHelper:
             self.logger.debug("Git repository check passed")
         except GitError:
             raise GitError("Not in a git repository")
+    
+    def get_commit_from_time(self, time_spec: str) -> Optional[str]:
+        """Get the commit hash closest to the specified time.
+        
+        Args:
+            time_spec: Time specification (e.g., '1h', '30m', 'today')
+            
+        Returns:
+            Commit hash if found, None if no commits exist at or before that time
+            
+        Raises:
+            GitError: If git command fails or time format is invalid
+        """
+        try:
+            target_time = parse_time_duration(time_spec)
+            git_time = datetime_to_git_format(target_time)
+            
+            self.logger.debug(f"Looking for commit since: {git_time}")
+            
+            # Get the first commit at or before the target time
+            output = run_command([
+                'git', 'rev-list', '-n', '1', 
+                f'--before={git_time}', 
+                'HEAD'
+            ])
+            
+            commit_hash = output.strip()
+            if commit_hash:
+                self.logger.debug(f"Found commit: {commit_hash}")
+                return commit_hash
+            else:
+                self.logger.debug("No commits found before target time")
+                return None
+                
+        except ValueError as e:
+            raise GitError(f"Invalid time format: {e}")
+        except GitError:
+            # Re-raise git errors as-is
+            raise
     
     def extract_supported_files(self, git_output: str, parse_status: bool = True) -> List[str]:
         """Extract supported files from git output.

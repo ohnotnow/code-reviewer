@@ -91,6 +91,21 @@ All commands below assume you are in the PHP projects root.
    deactivate
    ```
 
+3. Review changes from **the last hour**:
+   ```bash
+   uv run /path/to/code-reviewer/main.py --since 1h
+   ```
+
+4. Review changes from **the last 30 minutes**:
+   ```bash
+   uv run /path/to/code-reviewer/main.py --since 30m
+   ```
+
+5. Review changes from **the last 2 days**:
+   ```bash
+   uv run /path/to/code-reviewer/main.py --since 2d
+   ```
+
 Note: by default it will just print the markdown report to your terminal.  If you have the [glow](https://github.com/charmbracelet/glow) utility installed it will 'render' the markdown instead.
 
 If you find yourself frequently using this tool, you can add it to your `.bashrc` or `.zshrc` file:
@@ -117,6 +132,9 @@ cr() {
 
 - `--prompt-file <specific-prompt.md>`
   Use a specific code-review prompt file for this run.  This can also be handy to set up aliases where you pass a specific prompt for, say, golang/python/typescript etc.
+
+- `--since <time>`
+  Review changes since a specific time (default: 'today'). Supports formats like 'today', '1h', '30m', '2d'.
 
 - `--since-commit <commit-hash>`
   Compare against the current commit and another specific commit.

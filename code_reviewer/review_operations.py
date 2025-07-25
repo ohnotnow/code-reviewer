@@ -50,13 +50,15 @@ def review_single_file(filepath: str, max_lines: int, yes: bool = False) -> str:
 
 
 def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[str] = None, 
-                      yes: bool = False, logger: Optional[logging.Logger] = None) -> str:
+                      since_time: Optional[str] = None, yes: bool = False, 
+                      logger: Optional[logging.Logger] = None) -> str:
     """Review git changes and return diff content.
     
     Args:
         git: GitHelper instance
         config: Configuration instance
-        since_commit: Compare against this commit (optional)
+        since_commit: Compare against this commit (optional, deprecated)
+        since_time: Compare against this time specification (optional)
         yes: Skip user prompts and automatically proceed
         logger: Logger for info messages
         
@@ -70,8 +72,22 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
     """
     if logger is None:
         logger = logging.getLogger('codereviewer')
-        
-    if since_commit:
+    
+    # Handle time-based lookup first (preferred)
+    if since_time:
+        commit_hash = git.get_commit_from_time(since_time)
+        if commit_hash:
+            diff_mode = "since-commit"
+            changed_files = git.get_changed_files(commit_hash)
+            since_commit = commit_hash  # Use the resolved commit hash
+            logger.info(f"Using commit {commit_hash[:8]} from time '{since_time}'")
+        else:
+            # No commits found before the specified time, treat as if reviewing all changes
+            logger.info(f"No commits found before '{since_time}', reviewing all changes")
+            diff_mode = "uncommitted"
+            changed_files = git.get_changed_files()
+            since_commit = None
+    elif since_commit:
         diff_mode = "since-commit"
         changed_files = git.get_changed_files(since_commit)
     else:
