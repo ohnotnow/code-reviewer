@@ -173,4 +173,12 @@ def create_parser(config: Config) -> argparse.ArgumentParser:
         action='store_true',
         help='Automatically answer yes to prompts (useful for CI/automation)'
     )
+    parser.add_argument(
+        '--summary',
+        type=str,
+        nargs='?',
+        const='',
+        metavar='CONTEXT',
+        help='Generate a work summary instead of code review. Optional context can be provided (e.g., "I was working on the user authentication system")'
+    )
     return parser

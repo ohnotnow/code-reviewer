@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python-based CLI tool for code review powered by LLMs (specifically designed for PHP/Laravel projects but supports multiple languages). The tool reviews either individual files or git diffs and provides structured feedback using a conversational, emoji-driven approach.
+This is a Python-based CLI tool for code review powered by LLMs. The tool reviews either individual files or git diffs and provides structured feedback using a conversational, emoji-driven approach.
 
 ## Development Commands
 
@@ -30,6 +30,15 @@ uv run main.py --model openai/gpt-4
 
 # Review changes since specific commit
 uv run main.py --since-commit abc123
+
+# Review changes since a time
+uv run main.py --since 1h
+
+# Generate work summary instead of code review
+uv run main.py --summary
+
+# Generate work summary with context
+uv run main.py --summary "I was working on the user authentication system"
 
 # Use custom prompt file
 uv run main.py --prompt-file custom-prompt.md
@@ -77,6 +86,7 @@ The tool uses a sophisticated prompt system defined in `system_prompt.md` that:
 
 ## Key Features
 - Supports both single file and git diff review modes
+- **Work summary mode** - Generate narrative summaries of development work with `--summary`
 - Configurable line limits with user prompts for large files
 - Custom prompt file support for different project types
 - Debug mode for troubleshooting LLM interactions

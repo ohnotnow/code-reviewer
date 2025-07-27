@@ -95,8 +95,21 @@ def review_git_changes(git: GitHelper, config: Config, since_commit: Optional[st
         changed_files = git.get_changed_files()
 
     if not changed_files:
-        diff_mode = "last-commit"
-        changed_files = git.get_last_commit_files()
+        # If we were looking at time-based changes but found no committed changes,
+        # check for uncommitted changes before falling back to last commit
+        if since_time and diff_mode == "since-commit":
+            logger.info("No changes found since commit, checking for uncommitted changes")
+            uncommitted_files = git.get_changed_files()
+            if uncommitted_files:
+                diff_mode = "uncommitted"
+                changed_files = uncommitted_files
+                since_commit = None
+            else:
+                diff_mode = "last-commit"
+                changed_files = git.get_last_commit_files()
+        else:
+            diff_mode = "last-commit"
+            changed_files = git.get_last_commit_files()
 
     if not changed_files:
         raise FileError("Couldn't find any changed files")

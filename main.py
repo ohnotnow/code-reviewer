@@ -101,7 +101,6 @@ def main() -> None:
             content = review_single_file(args.file, args.max_lines, args.yes)
             review = reviewer.get_review(content, args.model, args.prompt_file, args.debug)
         else:
-            logger.debug("Starting git changes review")
             # Determine which since argument to use - prioritize explicit since_commit
             if args.since_commit:
                 since_time = None
@@ -111,7 +110,19 @@ def main() -> None:
                 since_commit = None
             
             content = review_git_changes(git, config, since_commit, since_time, args.yes, logger)
-            review = reviewer.get_review(content, args.model, args.prompt_file, args.debug)
+            
+            # Check if we're in summary mode
+            if hasattr(args, 'summary') and args.summary is not None:
+                logger.debug("Starting work summary generation")
+                # Use summary prompt and add user context if provided
+                summary_prompt_file = config.get_summary_prompt_file()
+                user_context = args.summary.strip() if args.summary else ""
+                if user_context:
+                    content = f"User context: {user_context}\n\n{content}"
+                review = reviewer.get_review(content, args.model, summary_prompt_file, args.debug)
+            else:
+                logger.debug("Starting git changes review")
+                review = reviewer.get_review(content, args.model, args.prompt_file, args.debug)
     except (FileError, LLMError, GitError) as e:
         logger.error(f"Review failed: {e}")
         sys.exit(1)

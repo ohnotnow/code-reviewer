@@ -139,6 +139,9 @@ cr() {
 - `--since-commit <commit-hash>`
   Compare against the current commit and another specific commit.
 
+- `--summary ["optional guidence"]`
+  Output a summary of what you've done today rather than an actual 'code review'.  Can be used with `--since` to summarize the changes since a specific time.  The default is 'today'.
+
 ## Style Guide
 
 The script looks for a file called `~/.code-review-prompt.md` for its instructions.  If it isn't found it will default to the `system_prompt.md` file in the repo.  You can copy the default file to `~/.code-review-prompt.md` and edit it to suit your preferences.

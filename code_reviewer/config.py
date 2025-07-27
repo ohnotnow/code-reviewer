@@ -4,6 +4,7 @@ Configuration management for the code reviewer.
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Set
 
 
@@ -83,3 +84,16 @@ class Config:
             raise ValueError("temperature must be between 0.0 and 1.0")
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
+    
+    def get_summary_prompt_file(self) -> str:
+        """Get the path to the summary prompt file.
+        
+        Returns:
+            Path to summary prompt file (summary_prompt.md in project root)
+        """
+        # Get the project root directory (where this script is located)
+        current_file = Path(__file__)
+        project_root = current_file.parent.parent
+        summary_prompt_path = project_root / "summary_prompt.md"
+        
+        return str(summary_prompt_path)
