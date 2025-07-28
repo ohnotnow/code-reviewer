@@ -116,6 +116,11 @@ cr() {
     python /path/to/code-reviewer/main.py "$*"
     deactivate
 }
+cs() {
+    source /path/to/code-reviewer/.venv/bin/activate
+    python /path/to/code-reviewer/main.py --summary "$*"
+    deactivate
+}
 ```
 ---
 
