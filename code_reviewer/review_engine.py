@@ -83,7 +83,7 @@ class CodeReviewer:
                 raise LLMError("LLM response has no choices")
                 
             cost = completion_cost(response)
-            formatted_cost = f"USD${cost:.4f}"
+            formatted_cost = f"US${cost:.4f}"
             self.logger.debug(f"LLM response cost: {formatted_cost}")
 
             choice = response.choices[0]

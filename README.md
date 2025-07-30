@@ -71,6 +71,24 @@ Windows PowerShell:
 $env:OPENAI_API_KEY = "your_api_key_here"
 ```
 
+### Additional Configuration Options
+
+You can customize the tool's behavior using these environment variables:
+
+- `CODE_REVIEW_DIFF_CONTEXT_LINES` - Number of context lines to include in git diffs (default: 100)
+- `CODE_REVIEW_MODEL` - Default LLM model (default: "openai/o4-mini")
+- `CODE_REVIEW_MAX_TOKENS` - Maximum tokens for LLM response (default: 100000)
+- `CODE_REVIEW_TEMPERATURE` - LLM temperature 0.0-1.0 (default: 0.3)
+- `CODE_REVIEW_MAX_SINGLE_FILE_LINES` - Max lines for single file review (default: 500)
+- `CODE_REVIEW_MAX_TOTAL_DIFF_LINES` - Max lines for diff review (default: 5000)
+- `CODE_REVIEW_GLOW_STYLE` - Glow markdown style theme (default: "dracula")
+
+Example:
+```bash
+export CODE_REVIEW_DIFF_CONTEXT_LINES=50  # Show 50 lines of context around changes
+export CODE_REVIEW_MODEL="anthropic/claude-sonnet-4-20250514"
+```
+
 ---
 
 ## Usage

@@ -28,6 +28,7 @@ class Config:
     max_tokens: int = 100000
     temperature: float = 0.3
     glow_style: str = "dracula"
+    diff_context_lines: int = 100
     # Token estimation constants
     token_estimate_chars_per_token: int = 4  # Rough estimate: 4 chars per token
     max_estimated_tokens: int = 100000  # Conservative limit for most models
@@ -43,6 +44,7 @@ class Config:
             CODE_REVIEW_MAX_SINGLE_FILE_LINES: Max lines for single file review
             CODE_REVIEW_MAX_TOTAL_DIFF_LINES: Max lines for diff review
             CODE_REVIEW_GLOW_STYLE: Glow markdown style theme
+            CODE_REVIEW_DIFF_CONTEXT_LINES: Number of context lines for git diff
         
         Returns:
             Config instance with settings from environment or defaults
@@ -71,7 +73,8 @@ class Config:
             default_model=os.getenv('CODE_REVIEW_MODEL', "openai/o4-mini"),
             max_tokens=get_int_env('CODE_REVIEW_MAX_TOKENS', 100000),
             temperature=get_float_env('CODE_REVIEW_TEMPERATURE', 0.3),
-            glow_style=os.getenv('CODE_REVIEW_GLOW_STYLE', "dracula")
+            glow_style=os.getenv('CODE_REVIEW_GLOW_STYLE', "dracula"),
+            diff_context_lines=get_int_env('CODE_REVIEW_DIFF_CONTEXT_LINES', 100)
         )
         
     def __post_init__(self) -> None:
@@ -84,6 +87,8 @@ class Config:
             raise ValueError("temperature must be between 0.0 and 1.0")
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
+        if self.diff_context_lines < 0:
+            raise ValueError("diff_context_lines must be non-negative")
     
     def get_summary_prompt_file(self) -> str:
         """Get the path to the summary prompt file.
