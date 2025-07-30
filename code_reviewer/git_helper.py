@@ -174,13 +174,13 @@ class GitHelper:
         try:
             if diff_mode == "since-commit" and since_commit:
                 self.logger.debug(f"Getting diff since commit: {since_commit}")
-                output = run_command(['git', 'diff', since_commit, 'HEAD'] + files)
+                output = run_command(['git', 'diff', '-U100', since_commit, 'HEAD'] + files)
             elif diff_mode == "uncommitted":
                 self.logger.debug("Getting uncommitted changes diff")
-                output = run_command(['git', 'diff', 'HEAD'] + files)
+                output = run_command(['git', 'diff', '-U100', 'HEAD'] + files)
             else:
                 self.logger.debug("Getting last commit diff")
-                output = run_command(['git', 'diff', 'HEAD^', 'HEAD'] + files)
+                output = run_command(['git', 'diff', '-U100', 'HEAD^', 'HEAD'] + files)
             
             word_count = len(output.split())
             self.logger.info(f"Retrieved diff content ({word_count} words)")

@@ -22,7 +22,7 @@ class Config:
         glow_style: Style theme for glow markdown rendering
     """
     max_single_file_lines: int = 500
-    max_total_diff_lines: int = 1000
+    max_total_diff_lines: int = 5000
     supported_extensions: Set[str] = frozenset({'.php', '.py', '.js'})
     default_model: str = "openai/o4-mini"
     max_tokens: int = 100000
@@ -67,7 +67,7 @@ class Config:
         
         return cls(
             max_single_file_lines=get_int_env('CODE_REVIEW_MAX_SINGLE_FILE_LINES', 500),
-            max_total_diff_lines=get_int_env('CODE_REVIEW_MAX_TOTAL_DIFF_LINES', 1000),
+            max_total_diff_lines=get_int_env('CODE_REVIEW_MAX_TOTAL_DIFF_LINES', 5000),
             default_model=os.getenv('CODE_REVIEW_MODEL', "openai/o4-mini"),
             max_tokens=get_int_env('CODE_REVIEW_MAX_TOKENS', 100000),
             temperature=get_float_env('CODE_REVIEW_TEMPERATURE', 0.3),
