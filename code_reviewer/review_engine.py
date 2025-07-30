@@ -6,7 +6,7 @@ import logging
 from typing import Optional
 
 import litellm
-from litellm import completion
+from litellm import completion, completion_cost
 
 from .config import Config
 from .exceptions import FileError, LLMError
@@ -82,6 +82,10 @@ class CodeReviewer:
                 self.logger.debug(f"LLM response object: {response}")
                 raise LLMError("LLM response has no choices")
                 
+            cost = completion_cost(response)
+            formatted_cost = f"USD${cost:.4f}"
+            self.logger.debug(f"LLM response cost: {formatted_cost}")
+
             choice = response.choices[0]
             if not hasattr(choice, 'message') or not hasattr(choice.message, 'content'):
                 self.logger.debug(f"Choice object: {choice}")
@@ -109,6 +113,7 @@ class CodeReviewer:
                 raise LLMError("LLM response content is empty after processing")
                 
             self.logger.debug(f"Received review response ({len(review_content)} characters)")
+            review_content = f"{review_content}\n\nModel: {model_to_use} -- Cost: {formatted_cost}\n"
             return review_content
 
         except Exception as e:
