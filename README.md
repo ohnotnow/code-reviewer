@@ -147,6 +147,19 @@ cs() {
 - `--summary ["optional guidence"]`
   Output a summary of what you've done today rather than an actual 'code review'.  Can be used with `--since` to summarize the changes since a specific time.  The default is 'today'.
 
+### Note on model names
+
+The package uses the [litellm](https://docs.litellm.ai/) package to interact with the LLM.  The model names are in the format of `provider/model_name`.  Some common examples :
+
+- `openai/o4-mini`
+- `openai/gpt-4.1`
+- `anthropic/claude-sonnet-4-20250514`
+- `openrouter/z-ai/glm-4.5`
+- `openrouter/google/gemini-2.5-pro`
+- `ollama/gemma3`
+
+You will need to set up the appropriate API keys from the providers you want to use.
+
 ## Style Guide
 
 The script looks for a file called `~/.code-review-prompt.md` for its instructions.  If it isn't found it will default to the `system_prompt.md` file in the repo.  You can copy the default file to `~/.code-review-prompt.md` and edit it to suit your preferences.
