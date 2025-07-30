@@ -23,7 +23,7 @@ class Config:
     """
     max_single_file_lines: int = 500
     max_total_diff_lines: int = 5000
-    supported_extensions: Set[str] = frozenset({'.php', '.py', '.js'})
+    supported_extensions: Set[str] = frozenset({'.php', '.py', '.js', '.md'})
     default_model: str = "openai/o4-mini"
     max_tokens: int = 100000
     temperature: float = 0.3

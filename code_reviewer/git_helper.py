@@ -124,7 +124,7 @@ class GitHelper:
                 output = run_command(['git', 'diff', '--name-only', since_commit, 'HEAD'])
                 parse_status = False
             else:
-                self.logger.debug("Getting staged files from git status")
+                self.logger.debug("Getting both staged and unstaged files from git status")
                 output = run_command(['git', 'status', '--porcelain'])
                 parse_status = True
 
